@@ -1,12 +1,21 @@
 # My app
 
 **Domain:**
-Study Snooze Tracker: a log of my study sessions and how often I hit "snooze" on my study-time reminders.
+Lofi Study Timer: a calm, dark-themed study timer that plays lofi music while I study and logs every study session per subject, so I can see where my study time actually goes.
 
-**User story:** As a college student juggling several classes, I need to see which courses and times of day I snooze my study reminders the most, so that I can reschedule study blocks to times I will actually follow through on.
+**User story:** As a college student juggling several classes, I need to time my study sessions for each subject and see how many minutes I've studied each one and how many sessions I actually finished, so that I can notice which classes I'm neglecting or quitting early on and plan my week around them.
 
 **What the user types or picks:**
-- Course: course_id, course_code (e.g. INFO 430), course_name
-- StudySession: session_id, course_id, planned_start, planned_minutes, actual_start, completed (yes/no)
-- Snooze: snooze_id, session_id, snoozed_at, snooze_minutes
-A table of courses with total planned sessions, total snoozes, average snooze minutes, and completion rate, sorted by most snoozed. Optional filter by course or day of week.
+- Picks a subject (or adds a new one: course code like INFO 430 and a course name)
+- Types or picks how many minutes to study (presets: 15, 25, 50, 90)
+- Presses Start / Pause / End early; lofi music plays while the timer runs, with an on/off switch and volume slider
+
+**What the page shows (from the database):**
+- Each subject with total minutes studied and sessions finished out of sessions started
+- The 10 most recent sessions: subject, minutes studied vs. planned, finished or ended early, and when
+
+**Tables (in my own database `<NetID>_myapp`):**
+- `courses`: course_id (PK), course_code, course_name
+- `study_sessions`: session_id (PK), course_id (FK → courses), planned_minutes, started_at, ended_at, actual_minutes, completed (yes/no)
+
+**Next idea:** track snoozes (a "snooze 5 min" button) to see which subjects I put off the most.

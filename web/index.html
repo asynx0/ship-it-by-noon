@@ -1,70 +1,704 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product List</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lofi Study Timer</title>
+  <style>
+    :root {
+      --bg: #0d0f1a;
+      --panel: #151929;
+      --panel-2: #1c2136;
+      --line: #2a3050;
+      --text: #e6e8f2;
+      --muted: #8b90ad;
+      --accent: #a5b4fc;
+      --accent-2: #f0abfc;
+      --good: #86efac;
+      --warn: #fca5a5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      overflow-x: hidden;
+    }
+    /* soft glow behind everything; it "breathes" while music plays */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      z-index: -1;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(165, 180, 252, 0.14), transparent 45%),
+        radial-gradient(circle at 75% 70%, rgba(240, 171, 252, 0.10), transparent 45%);
+      transition: opacity 1s;
+    }
+    body.playing::before { animation: breathe 8s ease-in-out infinite; }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    header { padding: 28px 32px 0; }
+    h1 { margin: 0; font-weight: 600; letter-spacing: 0.5px; }
+    h1 span { color: var(--accent); }
+    .sub { color: var(--muted); margin-top: 4px; }
+
+    main {
+      display: grid;
+      grid-template-columns: 300px 1fr 320px;
+      gap: 24px;
+      padding: 24px 32px 40px;
+      max-width: 1300px;
+    }
+    @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    /* subjects */
+    #course-list { display: flex; flex-direction: column; gap: 8px; }
+    .course {
+      text-align: left;
+      background: var(--panel-2);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+    }
+    .course:hover:not(:disabled) { border-color: var(--line); }
+    .course.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.12); }
+    .course:disabled { cursor: not-allowed; opacity: 0.55; }
+    .course .code { font-weight: 600; }
+    .course .name { color: var(--muted); font-size: 14px; }
+    .course .stats { color: var(--accent); font-size: 12px; margin-top: 6px; }
+
+    form#add-course { margin-top: 16px; display: grid; gap: 8px; }
+    input {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 10px 12px;
+      font: inherit;
+    }
+    input:focus { outline: none; border-color: var(--accent); }
+
+    button.btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      color: #0d0f1a;
+      background: var(--accent);
+    }
+    button.btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* timer */
+    .timer-panel { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    #now-studying { color: var(--muted); min-height: 1.4em; }
+    #now-studying b { color: var(--text); }
+    .ring { position: relative; width: 300px; height: 300px; }
+    .ring svg { transform: rotate(-90deg); }
+    .ring .track { stroke: var(--panel-2); }
+    .ring .progress { stroke: url(#grad); transition: stroke-dashoffset 0.3s linear; }
+    #time {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 64px;
+      font-weight: 300;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 2px;
+    }
+    .set-time { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .set-time input { width: 80px; text-align: center; }
+    .preset {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font: inherit;
+    }
+    .preset:disabled { opacity: 0.4; cursor: not-allowed; }
+    .controls { display: flex; gap: 12px; }
+    .controls .btn { min-width: 120px; padding: 12px 24px; }
+    .music { display: flex; gap: 14px; align-items: center; color: var(--muted); font-size: 14px; }
+    .music input[type=range] { padding: 0; accent-color: var(--accent); }
+    .music label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+    #message { min-height: 1.4em; font-size: 14px; color: var(--warn); text-align: center; }
+    #message.ok { color: var(--good); }
+
+    /* recent sessions */
+    #recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    #recent li { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+    #recent .top { display: flex; justify-content: space-between; }
+    #recent .when { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .tag { font-size: 12px; }
+    .tag.done { color: var(--good); }
+    .tag.early { color: var(--accent-2); }
+    .tag.open { color: var(--muted); }
+    .empty { color: var(--muted); font-size: 14px; }
+  </style>
 </head>
 <body>
-    <h1>Product List</h1>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Price</th>
-                <th>Stock</th>
-            </tr>
-        </thead>
-        <tbody id="product-table-body">
-            <!-- Rows will be dynamically added here -->
-        </tbody>
-    </table>
+  <header>
+    <h1>lofi <span>study</span> timer</h1>
+    <div class="sub">pick a subject, set your time, press start, and relax.</div>
+  </header>
 
-    <script>
-        async function fetchProducts() {
-            try {
-                const response = await fetch('/api/products');
-                const products = await response.json();
+  <main>
+    <!-- left: subjects -->
+    <section class="panel">
+      <h2>Subjects</h2>
+      <div id="course-list"><div class="empty">Loading…</div></div>
+      <form id="add-course">
+        <input id="new-code" placeholder="Code, e.g. INFO 430" maxlength="20" required>
+        <input id="new-name" placeholder="Name, e.g. Database Systems" maxlength="100" required>
+        <button class="btn ghost" type="submit">+ Add subject</button>
+      </form>
+    </section>
 
-                const tableBody = document.getElementById('product-table-body');
-                tableBody.innerHTML = ''; // Clear existing rows
+    <!-- middle: the timer -->
+    <section class="panel timer-panel">
+      <div id="now-studying">Pick a subject to begin</div>
 
-                products.forEach(product => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${product.id}</td>
-                        <td>${product.name}</td>
-                        <td>${product.price.toFixed(2)}</td>
-                        <td>${product.stock}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            } catch (error) {
-                console.error('Error fetching products:', error);
-            }
+      <div class="ring">
+        <svg width="300" height="300" viewBox="0 0 300 300">
+          <defs>
+            <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#a5b4fc" />
+              <stop offset="100%" stop-color="#f0abfc" />
+            </linearGradient>
+          </defs>
+          <circle class="track" cx="150" cy="150" r="130" fill="none" stroke-width="10" />
+          <circle class="progress" id="progress" cx="150" cy="150" r="130" fill="none"
+                  stroke-width="10" stroke-linecap="round" />
+        </svg>
+        <div id="time">25:00</div>
+      </div>
+
+      <div class="set-time">
+        <input id="minutes" type="number" min="1" max="600" value="25" aria-label="Minutes">
+        <span style="color: var(--muted)">min</span>
+        <button class="preset" data-min="15">15</button>
+        <button class="preset" data-min="25">25</button>
+        <button class="preset" data-min="50">50</button>
+        <button class="preset" data-min="90">90</button>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="start">Start</button>
+        <button class="btn ghost" id="stop" disabled>End early</button>
+      </div>
+
+      <div class="music">
+        <label><input type="checkbox" id="music-on" checked> lofi music</label>
+        <span>🔉</span>
+        <input type="range" id="volume" min="0" max="1" step="0.05" value="0.6" aria-label="Volume">
+      </div>
+
+      <div id="message"></div>
+    </section>
+
+    <!-- right: recent sessions -->
+    <section class="panel">
+      <h2>Recent sessions</h2>
+      <ul id="recent"><li class="empty">Loading…</li></ul>
+    </section>
+  </main>
+
+  <script>
+    // ---------- Lofi music, made live in the browser with the Web Audio API ----------
+    // Soft electric-piano chords, a bass line, a lazy swung drum beat, and vinyl crackle.
+    const lofi = (() => {
+      let ctx, master, wobble, noiseBuffer, crackleSrc, timerId, nextTime, step = 0;
+      let volume = 0.6;
+      const BPM = 72;
+      const EIGHTH = 60 / BPM / 2;           // length of one 8th note, in seconds
+      const LOOKAHEAD = 1.5;                 // schedule this far ahead so background tabs don't stutter
+      const chords = [                       // Fmaj7, Em7, Dm7, Cmaj7 (MIDI note numbers)
+        [53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]
+      ];
+      const bassNotes = [41, 40, 38, 36];
+      const melodyNotes = [72, 74, 76, 79, 81, 84]; // C major pentatonic
+      const hz = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
+
+      function setup() {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain();
+        master.gain.value = 0;
+        const warm = ctx.createBiquadFilter();       // takes the sharp edges off everything
+        warm.type = 'lowpass';
+        warm.frequency.value = 2800;
+        master.connect(warm);
+        warm.connect(ctx.destination);
+
+        // slow pitch wobble, like an old tape
+        wobble = ctx.createGain();
+        wobble.gain.value = 7;
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 0.35;
+        lfo.connect(wobble);
+        lfo.start();
+
+        noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+        const d = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      }
+
+      function keys(midi, t, dur, vel) {
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(vel, t + 0.03);
+        g.gain.exponentialRampToValueAtTime(vel * 0.4, t + 0.6);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 1400;
+        g.connect(lp);
+        lp.connect(master);
+        [['triangle', 1, 0.7], ['sine', 2, 0.25]].forEach(([type, mult, amount]) => {
+          const o = ctx.createOscillator();
+          o.type = type;
+          o.frequency.value = hz(midi) * mult;
+          o.detune.value = (Math.random() - 0.5) * 10;
+          wobble.connect(o.detune);
+          const og = ctx.createGain();
+          og.gain.value = amount;
+          o.connect(og);
+          og.connect(g);
+          o.start(t);
+          o.stop(t + dur + 0.05);
+        });
+      }
+
+      function bass(midi, t, dur) {
+        const o = ctx.createOscillator();
+        o.type = 'sine';
+        o.frequency.value = hz(midi);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.25, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g);
+        g.connect(master);
+        o.start(t);
+        o.stop(t + dur + 0.05);
+      }
+
+      function kick(t) {
+        const o = ctx.createOscillator();
+        o.frequency.setValueAtTime(110, t);
+        o.frequency.exponentialRampToValueAtTime(40, t + 0.15);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.45, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        o.connect(g);
+        g.connect(master);
+        o.start(t);
+        o.stop(t + 0.35);
+      }
+
+      function noiseHit(t, filterType, freq, vel, length) {
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const f = ctx.createBiquadFilter();
+        f.type = filterType;
+        f.frequency.value = freq;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(vel, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + length);
+        src.connect(f);
+        f.connect(g);
+        g.connect(master);
+        src.start(t);
+        src.stop(t + length + 0.05);
+      }
+
+      function startCrackle() {
+        const len = ctx.sampleRate * 3;
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        let pop = 0;
+        for (let i = 0; i < len; i++) {
+          if (Math.random() < 0.0003) pop = (Math.random() * 2 - 1) * 0.5;
+          pop *= 0.9;
+          d[i] = (Math.random() * 2 - 1) * 0.004 + pop;
         }
+        crackleSrc = ctx.createBufferSource();
+        crackleSrc.buffer = buf;
+        crackleSrc.loop = true;
+        const g = ctx.createGain();
+        g.gain.value = 0.5;
+        crackleSrc.connect(g);
+        g.connect(master);
+        crackleSrc.start();
+      }
 
-        // Fetch products when the page loads
-        window.onload = fetchProducts;
-    </script>
+      // one 8th-note step of the beat; 8 steps = 1 bar, 4 bars = the full chord loop
+      function playStep(s, t) {
+        const pos = s % 8;
+        const bar = Math.floor(s / 8) % 4;
+        const swungT = t + (pos % 2 ? EIGHTH * 0.18 : 0);
+        if (pos === 0) {
+          chords[bar].forEach((m, i) => keys(m, t + i * 0.015, EIGHTH * 8, 0.09));
+          bass(bassNotes[bar], t, EIGHTH * 6);
+        }
+        if (pos === 0 || pos === 5) kick(swungT);
+        if (pos === 2 || pos === 6) noiseHit(swungT, 'bandpass', 1800, 0.12, 0.18);
+        noiseHit(swungT, 'highpass', 7000, pos % 2 ? 0.025 : 0.04, 0.05);
+        if (pos !== 0 && Math.random() < 0.2) {
+          keys(melodyNotes[Math.floor(Math.random() * melodyNotes.length)], swungT, EIGHTH * 3, 0.05);
+        }
+      }
+
+      function scheduler() {
+        while (nextTime < ctx.currentTime + LOOKAHEAD) {
+          playStep(step, nextTime);
+          nextTime += EIGHTH;
+          step++;
+        }
+      }
+
+      return {
+        async play() {
+          if (!ctx) setup();
+          await ctx.resume();
+          if (!timerId) {
+            nextTime = ctx.currentTime + 0.1;
+            step = 0;
+            startCrackle();
+            scheduler();
+            timerId = setInterval(scheduler, 200);
+          }
+          master.gain.cancelScheduledValues(ctx.currentTime);
+          master.gain.setTargetAtTime(volume, ctx.currentTime, 0.6);
+        },
+        pause() {
+          if (ctx) ctx.suspend(); // freezes the music exactly where it is
+        },
+        stop() {
+          if (!ctx || !timerId) return;
+          clearInterval(timerId);
+          timerId = null;
+          master.gain.cancelScheduledValues(ctx.currentTime);
+          master.gain.setTargetAtTime(0, ctx.currentTime, 0.4);
+          crackleSrc.stop(ctx.currentTime + 2);
+          crackleSrc = null;
+          ctx.resume(); // let the fade-out finish even if we were paused
+        },
+        setVolume(v) {
+          volume = v;
+          if (ctx && timerId) master.gain.setTargetAtTime(v, ctx.currentTime, 0.1);
+        },
+        async chime() {
+          if (!ctx) setup();
+          await ctx.resume();
+          [76, 79, 84].forEach((m, i) => {
+            const t = ctx.currentTime + 0.1 + i * 0.3;
+            const o = ctx.createOscillator();
+            o.type = 'sine';
+            o.frequency.value = hz(m);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.linearRampToValueAtTime(0.18, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.start(t);
+            o.stop(t + 1.9);
+          });
+        }
+      };
+    })();
+
+    // ---------- Talking to our own server ----------
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+    function sendJson(method, path, body) {
+      return api(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+
+    // ---------- Page state ----------
+    const $ = (id) => document.getElementById(id);
+    const RING = 2 * Math.PI * 130;     // circumference of the progress circle
+    $('progress').style.strokeDasharray = RING;
+
+    const state = {
+      courses: [],
+      selectedId: null,
+      totalMs: 25 * 60000,
+      remainingMs: 25 * 60000,
+      endAt: null,          // clock time when the timer will hit 0 (while running)
+      running: false,
+      sessionId: null,      // id of the study_sessions row for the current timer
+      tickId: null
+    };
+    const inSession = () => state.sessionId !== null || state.running;
+
+    function showMessage(text, ok = false) {
+      $('message').textContent = text;
+      $('message').className = ok ? 'ok' : '';
+    }
+
+    function format(ms) {
+      const totalSec = Math.ceil(ms / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      const mmss = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      return h > 0 ? h + ':' + mmss : mmss;
+    }
+
+    function renderTimer() {
+      $('time').textContent = format(state.remainingMs);
+      $('progress').style.strokeDashoffset = RING * (1 - state.remainingMs / state.totalMs);
+      $('start').textContent = state.running ? 'Pause' : (state.sessionId ? 'Resume' : 'Start');
+      $('stop').disabled = !inSession();
+      const locked = inSession();
+      $('minutes').disabled = locked;
+      document.querySelectorAll('.preset').forEach((b) => (b.disabled = locked));
+      document.querySelectorAll('.course').forEach((b) => (b.disabled = locked));
+      document.title = state.running ? format(state.remainingMs) + ' · lofi study' : 'Lofi Study Timer';
+      document.body.classList.toggle('playing', state.running);
+
+      const c = state.courses.find((x) => x.course_id === state.selectedId);
+      $('now-studying').innerHTML = '';
+      if (c) {
+        $('now-studying').append(state.running ? 'Studying ' : 'Ready: ');
+        const b = document.createElement('b');
+        b.textContent = c.course_code;
+        $('now-studying').append(b, ' · ' + c.course_name);
+      } else {
+        $('now-studying').textContent = 'Pick a subject to begin';
+      }
+    }
+
+    function setMinutes(min) {
+      if (inSession()) return;
+      const m = Math.min(600, Math.max(1, Math.round(Number(min) || 1)));
+      $('minutes').value = m;
+      state.totalMs = state.remainingMs = m * 60000;
+      renderTimer();
+    }
+
+    // ---------- Subjects ----------
+    async function loadCourses() {
+      try {
+        state.courses = await api('/api/courses');
+      } catch (err) {
+        $('course-list').innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'empty';
+        div.textContent = 'Could not load subjects: ' + err.message;
+        $('course-list').append(div);
+        return;
+      }
+      if (state.selectedId === null && state.courses.length) state.selectedId = state.courses[0].course_id;
+
+      $('course-list').innerHTML = '';
+      if (!state.courses.length) {
+        $('course-list').innerHTML = '<div class="empty">No subjects yet. Add one below.</div>';
+      }
+      for (const c of state.courses) {
+        const btn = document.createElement('button');
+        btn.className = 'course' + (c.course_id === state.selectedId ? ' selected' : '');
+        const code = document.createElement('div');
+        code.className = 'code';
+        code.textContent = c.course_code;
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = c.course_name;
+        const stats = document.createElement('div');
+        stats.className = 'stats';
+        stats.textContent = `${Math.round(c.minutes_studied)} min studied · ${c.completed_sessions}/${c.sessions} sessions finished`;
+        btn.append(code, name, stats);
+        btn.addEventListener('click', () => {
+          state.selectedId = c.course_id;
+          document.querySelectorAll('.course').forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          renderTimer();
+        });
+        $('course-list').append(btn);
+      }
+      renderTimer();
+    }
+
+    $('add-course').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const { course_id } = await sendJson('POST', '/api/courses', {
+          course_code: $('new-code').value,
+          course_name: $('new-name').value
+        });
+        $('new-code').value = '';
+        $('new-name').value = '';
+        if (!inSession()) state.selectedId = course_id;
+        await loadCourses();
+        showMessage('Subject added.', true);
+      } catch (err) {
+        showMessage(err.message);
+      }
+    });
+
+    // ---------- Recent sessions ----------
+    async function loadRecent() {
+      let rows;
+      try {
+        rows = await api('/api/sessions/recent');
+      } catch (err) {
+        $('recent').innerHTML = '';
+        return;
+      }
+      $('recent').innerHTML = '';
+      if (!rows.length) {
+        $('recent').innerHTML = '<li class="empty">No sessions yet. Your first one will show up here.</li>';
+        return;
+      }
+      for (const r of rows) {
+        const li = document.createElement('li');
+        const top = document.createElement('div');
+        top.className = 'top';
+        const left = document.createElement('span');
+        left.textContent = r.ended_at
+          ? `${r.course_code} · ${r.actual_minutes} of ${r.planned_minutes} min`
+          : `${r.course_code} · ${r.planned_minutes} min planned`;
+        const tag = document.createElement('span');
+        if (!r.ended_at) { tag.className = 'tag open'; tag.textContent = 'not finished'; }
+        else if (r.completed) { tag.className = 'tag done'; tag.textContent = '✓ done'; }
+        else { tag.className = 'tag early'; tag.textContent = 'ended early'; }
+        top.append(left, tag);
+        const when = document.createElement('div');
+        when.className = 'when';
+        when.textContent = new Date(r.started_at).toLocaleString([], {
+          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+        });
+        li.append(top, when);
+        $('recent').append(li);
+      }
+    }
+
+    // ---------- Timer ----------
+    function tick() {
+      state.remainingMs = Math.max(0, state.endAt - Date.now());
+      renderTimer();
+      if (state.remainingMs === 0) finish(true);
+    }
+
+    async function startOrPause() {
+      if (state.running) {                       // Pause
+        state.running = false;
+        clearInterval(state.tickId);
+        state.remainingMs = Math.max(0, state.endAt - Date.now());
+        lofi.pause();
+        renderTimer();
+        return;
+      }
+      if (state.selectedId === null) {
+        showMessage('Pick or add a subject first.');
+        return;
+      }
+      showMessage('');
+      if (state.sessionId === null) {            // brand-new session: save it
+        try {
+          const { session_id } = await sendJson('POST', '/api/sessions', {
+            course_id: state.selectedId,
+            planned_minutes: Math.round(state.totalMs / 60000)
+          });
+          state.sessionId = session_id;
+          loadRecent();
+        } catch (err) {
+          showMessage('Could not save this session (' + err.message + '). The timer still works.');
+          state.sessionId = -1;                  // -1 = running but not saved
+        }
+      }
+      state.running = true;                      // Start / Resume
+      state.endAt = Date.now() + state.remainingMs;
+      state.tickId = setInterval(tick, 250);
+      if ($('music-on').checked) lofi.play();
+      renderTimer();
+    }
+
+    async function finish(completed) {
+      clearInterval(state.tickId);
+      const studiedMin = (state.totalMs - state.remainingMs) / 60000;
+      const id = state.sessionId;
+      state.running = false;
+      state.sessionId = null;
+      lofi.stop();
+      if (completed) lofi.chime();
+
+      if (id !== null && id !== -1) {
+        try {
+          await sendJson('PUT', `/api/sessions/${id}/finish`, {
+            actual_minutes: completed ? state.totalMs / 60000 : studiedMin,
+            completed
+          });
+        } catch (err) {
+          showMessage('Could not save the end of this session: ' + err.message);
+        }
+      }
+      if (completed) showMessage('Session complete. Nice work! Take a little break 🌙', true);
+      else showMessage(`Ended early after ${studiedMin.toFixed(1)} min.`, true);
+
+      state.remainingMs = state.totalMs;         // reset for the next round
+      renderTimer();
+      loadCourses();
+      loadRecent();
+    }
+
+    $('start').addEventListener('click', startOrPause);
+    $('stop').addEventListener('click', () => finish(false));
+    $('minutes').addEventListener('change', (e) => setMinutes(e.target.value));
+    document.querySelectorAll('.preset').forEach((b) =>
+      b.addEventListener('click', () => setMinutes(b.dataset.min))
+    );
+    $('volume').addEventListener('input', (e) => lofi.setVolume(Number(e.target.value)));
+    $('music-on').addEventListener('change', (e) => {
+      if (!e.target.checked) lofi.stop();
+      else if (state.running) lofi.play();
+    });
+    window.addEventListener('beforeunload', (e) => {
+      if (inSession()) e.preventDefault();       // warn before closing mid-session
+    });
+
+    renderTimer();
+    loadCourses();
+    loadRecent();
+  </script>
 </body>
 </html>
